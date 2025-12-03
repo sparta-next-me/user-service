@@ -1,0 +1,17 @@
+server:
+  port: 12000
+
+spring:
+  application:
+    name: user-service
+
+  config:
+    import: "configserver:http://localhost:3100"
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:3150/eureka/
+
