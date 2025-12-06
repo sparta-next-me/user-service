@@ -5,7 +5,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
-import org.hibernate.annotations.SQLRestriction;
 import org.nextme.common.jpa.BaseEntity;
 
 import java.util.HashSet;
@@ -22,7 +21,9 @@ import java.util.Set;
 @Table(name = "p_user")
 @ToString(exclude = "socialAccounts")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLRestriction("deleted_at IS NULL") // soft delete (BaseEntity에 deleted_at 있다고 가정)
+
+
+
 public class User extends BaseEntity {
 
     // UUID 기반 식별자 (EmbeddedId)
@@ -88,12 +89,23 @@ public class User extends BaseEntity {
     @Column(name = "advisor_status", nullable = false, length = 20)
     private AdvisorStatus advisorStatus;
 
+
+    /**
+     * 비밀번호가 사용자가 직접 설정한 상태인지 여부
+     * - 로컬 회원가입: true
+     * - 소셜 최초 가입: false (랜덤 패스워드만 들어가 있고, 사용자는 모름)
+     * - 사용자가 "비밀번호 최초 설정" 하면 true로 변경
+     */
+    @Column(name = "password_initialized", nullable = false)
+    private boolean passwordInitialized;
+
     // ===== 소셜 계정 컬렉션 =====
     /**
      * 소셜 계정 목록
      * - 한 유저가 여러 소셜 계정을 연결할 수 있음 (카카오 + 구글 등)
      * - SocialAccount는 값 객체(@Embeddable)이고, 별도 테이블(social_account)에 저장됨
      */
+
     @ElementCollection
     @CollectionTable(
             name = "social_account",
@@ -144,7 +156,7 @@ public class User extends BaseEntity {
             String name,
             String slackId
     ) {
-        return new User(
+        User user = new User(
                 id,
                 userName,
                 encodedPassword,
@@ -154,6 +166,8 @@ public class User extends BaseEntity {
                 UserStatus.ACTIVE,
                 AdvisorStatus.NOT_REQUESTED
         );
+        user.passwordInitialized = true;
+        return user;
     }
 
     /**
@@ -184,7 +198,10 @@ public class User extends BaseEntity {
                 UserStatus.ACTIVE,
                 AdvisorStatus.NOT_REQUESTED
         );
+
+        user.passwordInitialized = false;      // 소셜 회원은 최초엔 비번 미설정 상태
         user.addSocialAccount(socialAccount);   // 첫 소셜 계정 연결
+
         return user;
     }
 
@@ -205,6 +222,27 @@ public class User extends BaseEntity {
     public void removeSocialAccount(SocialAccount socialAccount) {
         this.socialAccounts.remove(socialAccount);
     }
+
+    /**
+     * 비밀번호가 초기화(직접 설정) 되었는지 여부
+     */
+    public boolean isPasswordInitialized() {
+        return passwordInitialized;
+    }
+
+    /**
+     * 비밀번호 최초 설정 (소셜 + 비번 미설정 상태에서만 사용)
+     * - 이미 passwordInitialized == true 인 상태에서 호출되면 예외
+     */
+    public void initPassword(String encodedPassword) {
+        if (this.passwordInitialized) {
+            // TODO: 도메인 전용 예외로 교체 (ex: UserException.PASSWORD_ALREADY_INITIALIZED)
+            throw new IllegalStateException("Password already initialized");
+        }
+        this.password = encodedPassword;
+        this.passwordInitialized = true;
+    }
+
 
     /**
      * 비밀번호 변경 (일반 로그인/비밀번호 설정 기능용)
