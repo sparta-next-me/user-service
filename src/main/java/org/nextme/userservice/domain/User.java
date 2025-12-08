@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.nextme.common.jpa.BaseEntity;
+import org.nextme.infrastructure.exception.ApplicationException;
+import org.nextme.userservice.application.error.ErrorCode;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -15,15 +17,13 @@ import java.util.Set;
  * - 서비스 내 "회원"을 나타내는 Aggregate Root
  * - 소셜 로그인/일반 회원 모두 이 엔티티로 관리
  * - 소셜 계정은 SocialAccount 값 객체 컬렉션(@ElementCollection)으로 관리
+ * - 프로필(UserProfile)은 @Embedded 값 객체로 관리
  */
 @Getter
 @Entity
 @Table(name = "p_user")
-@ToString(exclude = "socialAccounts")
+@ToString(exclude = {"socialAccounts", "profile"})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-
-
-
 public class User extends BaseEntity {
 
     // UUID 기반 식별자 (EmbeddedId)
@@ -89,7 +89,6 @@ public class User extends BaseEntity {
     @Column(name = "advisor_status", nullable = false, length = 20)
     private AdvisorStatus advisorStatus;
 
-
     /**
      * 비밀번호가 사용자가 직접 설정한 상태인지 여부
      * - 로컬 회원가입: true
@@ -100,12 +99,12 @@ public class User extends BaseEntity {
     private boolean passwordInitialized;
 
     // ===== 소셜 계정 컬렉션 =====
+
     /**
      * 소셜 계정 목록
      * - 한 유저가 여러 소셜 계정을 연결할 수 있음 (카카오 + 구글 등)
      * - SocialAccount는 값 객체(@Embeddable)이고, 별도 테이블(social_account)에 저장됨
      */
-
     @ElementCollection
     @CollectionTable(
             name = "social_account",
@@ -113,7 +112,17 @@ public class User extends BaseEntity {
     )
     private Set<SocialAccount> socialAccounts = new HashSet<>();
 
+    // ===== 프로필 (임베디드 값 객체) =====
+
+    /**
+     * 유저의 프로필 정보
+     * - null 일 수 있음 (아직 프로필을 작성하지 않은 경우)
+     */
+    @Embedded
+    private UserProfile profile;
+
     // ===== 생성자 (외부에서 new 불가, 팩토리 메서드로만 생성) =====
+
     private User(
             UserId id,
             String userName,
@@ -138,16 +147,6 @@ public class User extends BaseEntity {
     //  팩토리 메서드들
     // ==========================
 
-    /**
-     * ❗ 일반 회원가입 (ID/PW 직접 입력) 용 팩토리
-     *
-     * - userName: 사용자가 직접 입력한 로그인 ID
-     * - encodedPassword: 암호화된 비밀번호(BCrypt 등)
-     * - role: 일반 가입은 대부분 USER, 필요 시 다른 역할로도 생성 가능
-     * - slackId: 처음에는 대부분 null
-     * - status: 기본 ACTIVE
-     * - advisorStatus: 기본 NOT_REQUESTED (아직 어드바이저 신청 전)
-     */
     public static User createLocalUser(
             UserId id,
             String userName,
@@ -166,21 +165,10 @@ public class User extends BaseEntity {
                 UserStatus.ACTIVE,
                 AdvisorStatus.NOT_REQUESTED
         );
-        user.passwordInitialized = true;
+        user.passwordInitialized = true;   // 로컬 회원가입은 비밀번호가 이미 설정됨
         return user;
     }
 
-    /**
-     * ❗ 소셜 로그인 최초 가입 용 팩토리
-     *
-     * - generatedUserName: 소셜 로그인 시 자동 생성된 내부 user_name
-     *                      (ex. kakao_123abc, google_583920)
-     * - randomPassword: 소셜 계정용 랜덤 패스워드(유저는 모름), DB 제약 때문에 입력
-     * - role: 무조건 USER
-     * - status: 무조건 ACTIVE
-     * - advisorStatus: 무조건 NOT_REQUESTED
-     * - slackId: 처음엔 null (어드바이저 신청 시 입력)
-     */
     public static User createWithSocial(
             UserId id,
             String name,
@@ -199,7 +187,7 @@ public class User extends BaseEntity {
                 AdvisorStatus.NOT_REQUESTED
         );
 
-        user.passwordInitialized = false;      // 소셜 회원은 최초엔 비번 미설정 상태
+        user.passwordInitialized = false;       // 소셜 회원은 최초엔 비번 미설정 상태
         user.addSocialAccount(socialAccount);   // 첫 소셜 계정 연결
 
         return user;
@@ -209,59 +197,126 @@ public class User extends BaseEntity {
     //  도메인 행위 메서드들
     // ==========================
 
-    /**
-     * 소셜 계정 추가 (카카오에 이어 구글 계정도 연결하는 경우 등)
-     */
     public void addSocialAccount(SocialAccount socialAccount) {
         this.socialAccounts.add(socialAccount);
     }
 
-    /**
-     * 소셜 계정 해제 (연결 끊기)
-     */
     public void removeSocialAccount(SocialAccount socialAccount) {
         this.socialAccounts.remove(socialAccount);
     }
 
-    /**
-     * 비밀번호가 초기화(직접 설정) 되었는지 여부
-     */
     public boolean isPasswordInitialized() {
         return passwordInitialized;
     }
 
     /**
-     * 비밀번호 최초 설정 (소셜 + 비번 미설정 상태에서만 사용)
-     * - 이미 passwordInitialized == true 인 상태에서 호출되면 예외
+     * 비밀번호 최초 설정
+     * - 이미 passwordInitialized == true 인 상태에서 호출되면
+     *   PASSWORD_ALREADY_INITIALIZED 에러 발생
      */
     public void initPassword(String encodedPassword) {
         if (this.passwordInitialized) {
-            // TODO: 도메인 전용 예외로 교체 (ex: UserException.PASSWORD_ALREADY_INITIALIZED)
-            throw new IllegalStateException("Password already initialized");
+            ErrorCode e = ErrorCode.PASSWORD_ALREADY_INITIALIZED;
+            throw new ApplicationException(
+                    e.getHttpStatus(),
+                    e.getCode(),
+                    e.getDefaultMessage()
+            );
         }
         this.password = encodedPassword;
         this.passwordInitialized = true;
     }
 
-
-    /**
-     * 비밀번호 변경 (일반 로그인/비밀번호 설정 기능용)
-     */
+    /** 비밀번호 변경 (일반 로그인/비밀번호 설정 기능용) */
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
     }
 
-    /**
-     * 계정 상태 변경 (관리자 페이지 등에서 사용)
-     */
+    /** 계정 상태 변경 (관리자 페이지 등에서 사용) */
     public void changeStatus(UserStatus status) {
         this.status = status;
     }
 
-    /**
-     * 어드바이저 상태 변경 (심사 로직에서 사용)
-     */
+    /** 회원 역할 변경 (권한 승급/변경 시 사용) */
+    public void changeRole(UserRole role) {
+        this.role = role;
+    }
+
+    /** 기본 정보 수정 (이름 + 슬랙 ID) */
+    public void updateBasicInfo(String name, String slackId) {
+        this.name = name;
+        this.slackId = slackId;
+    }
+
+    /** 어드바이저 상태 변경 (심사 로직에서 사용) */
     public void changeAdvisorStatus(AdvisorStatus advisorStatus) {
         this.advisorStatus = advisorStatus;
+    }
+
+    // ==========================
+    //  프로필(UserProfile) 관련 도메인 메서드
+    // ==========================
+
+    /**
+     * 프로필 최초 생성
+     * - 이미 profile 이 존재하면 PROFILE_ALREADY_EXISTS 에러
+     */
+    public void createProfile(
+            String mainCategory,
+            String intro,
+            Integer careerYears,
+            boolean isActive
+    ) {
+        if (this.profile != null) {
+            ErrorCode e = ErrorCode.PROFILE_ALREADY_EXISTS;
+            throw new ApplicationException(
+                    e.getHttpStatus(),
+                    e.getCode(),
+                    e.getDefaultMessage()
+            );
+        }
+        this.profile = UserProfile.of(mainCategory, intro, careerYears, isActive);
+    }
+
+    /**
+     * 프로필 수정
+     * - profile 이 null 이면 PROFILE_NOT_FOUND 에러
+     */
+    public void updateProfile(
+            String mainCategory,
+            String intro,
+            Integer careerYears,
+            boolean isActive
+    ) {
+        if (this.profile == null) {
+            ErrorCode e = ErrorCode.PROFILE_NOT_FOUND;
+            throw new ApplicationException(
+                    e.getHttpStatus(),
+                    e.getCode(),
+                    e.getDefaultMessage()
+            );
+        }
+        this.profile = UserProfile.of(mainCategory, intro, careerYears, isActive);
+    }
+
+    /**
+     * 프로필 비활성화
+     * - profile 이 null 이면 PROFILE_NOT_FOUND 에러
+     */
+    public void deactivateProfile() {
+        if (this.profile == null) {
+            ErrorCode e = ErrorCode.PROFILE_NOT_FOUND;
+            throw new ApplicationException(
+                    e.getHttpStatus(),
+                    e.getCode(),
+                    e.getDefaultMessage()
+            );
+        }
+        this.profile = UserProfile.of(
+                this.profile.getMainCategory(),
+                this.profile.getIntro(),
+                this.profile.getCareerYears(),
+                false      // active → false
+        );
     }
 }

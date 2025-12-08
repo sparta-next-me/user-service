@@ -96,16 +96,19 @@ public class NextmeOAuth2UserService extends DefaultOAuth2UserService {
         // 6. 권한 목록 구성 (우리 도메인의 UserRole 을 기반으로)
         String roleName = user.getRole().name(); // ex) USER, ADVISOR, ADMIN ...
         List<String> roles = List.of(roleName);
+        String name = user.getName();
+        String slackId = user.getSlackId();
 
         // 7. 우리 서비스 기준 인증 사용자(Principal)로 감싸서 반환
         //    - 이후 SecurityContext 에 Authentication 으로 저장됨
         //    - onAuthenticationSuccess 에서 Authentication.getPrincipal() 로 꺼낼 수 있음
         return new NextmeUserPrincipal(
-                user.getId(),           // UserId (값 객체)
-                profile.email(),        // 이메일
-                profile.nickname(),     // 닉네임
-                roles,                  // ["USER"], ["ADVISOR"] ...
-                profile.attributes()    // raw attributes (필요 시 참고)
+                user.getId(),            // UserId (값 객체)
+                profile.email(),         // 이메일 (소셜 프로필에서 가져온 값)
+                name,                    // 우리 서비스에서 관리하는 이름
+                slackId,                 // 슬랙 ID (nullable)
+                roles,                   // ["USER"], ["ADVISOR"] ...
+                profile.attributes()     // raw attributes (필요 시 참고)
         );
     }
 

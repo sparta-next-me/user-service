@@ -13,20 +13,23 @@ public class NextmeUserPrincipal implements OAuth2User {
 
     private final UserId userId;                      // 우리 서비스 UserId(UUID)
     private final String email;                       // 유저 이메일 (nullable 가능)
-    private final String nickname;                    // 닉네임
+    private final String name;                        // 이름(닉네임 대신)
+    private final String slackId;                     // 슬랙 ID (nullable)
     private final Collection<? extends GrantedAuthority> authorities; // 권한
-    private final Map<String, Object> attributes;     // 카카오 원본 attributes (필요하면 사용)
+    private final Map<String, Object> attributes;     // 소셜 원본 attributes (필요하면 사용)
 
     public NextmeUserPrincipal(
             UserId userId,
             String email,
-            String nickname,
+            String name,
+            String slackId,
             List<String> roles,
             Map<String, Object> attributes
     ) {
         this.userId = userId;
         this.email = email;
-        this.nickname = nickname;
+        this.name = name;
+        this.slackId = slackId;
         this.attributes = attributes;
         this.authorities = roles.stream()
                 // "USER" -> "ROLE_USER" 이런 식으로 prefix 붙여줌
@@ -42,8 +45,18 @@ public class NextmeUserPrincipal implements OAuth2User {
         return email;
     }
 
-    public String getNickname() {
-        return nickname;
+    /**
+     * 소셜/유저 이름
+     */
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * 슬랙 ID (없으면 null)
+     */
+    public String getSlackId() {
+        return slackId;
     }
 
     // === OAuth2User 인터페이스 구현 ===
@@ -56,12 +69,5 @@ public class NextmeUserPrincipal implements OAuth2User {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return authorities;
-    }
-
-    // Security 에서 "이 유저 이름"으로 쓸 값
-    // 여기서는 UserId 문자열로 사용
-    @Override
-    public String getName() {
-        return userId.toString();
     }
 }

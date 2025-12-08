@@ -2,10 +2,11 @@ package org.nextme.userservice.application.service;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.nextme.infrastructure.exception.ApplicationException;
+import org.nextme.userservice.application.error.ErrorCode;
 import org.nextme.userservice.domain.User;
 import org.nextme.userservice.domain.UserId;
 import org.nextme.userservice.domain.repository.UserRepository;
-import org.springframework.security.core.parameters.P;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -22,17 +23,16 @@ public class UserPasswordService {
      * - 이미 설정된 유저가 호출하면 예외
      */
     @Transactional
-    public void setInitialPassword(UserId userId, String rawPassword){
+    public void setInitialPassword(UserId userId, String rawPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> toAppException(ErrorCode.USER_NOT_FOUND));
 
         if (user.isPasswordInitialized()) {
-            throw new IllegalStateException("Password already initialized");
+            throw toAppException(ErrorCode.PASSWORD_ALREADY_INITIALIZED);
         }
 
         String encoded = passwordEncoder.encode(rawPassword);
-        user.initPassword(encoded);
-        // JPA 변경 감지로 자동 update
+        user.initPassword(encoded); // JPA 변경 감지로 update
     }
 
     /**
@@ -40,19 +40,31 @@ public class UserPasswordService {
      * - currentPassword 검증 필수
      */
     @Transactional
-    public void changePassword(UserId userId, String currentRawPassword, String newRawPassword){
+    public void changePassword(UserId userId, String currentRawPassword, String newRawPassword) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        if (!user.isPasswordInitialized()){
-            throw new IllegalStateException("Password not initialized");
+                .orElseThrow(() -> toAppException(ErrorCode.USER_NOT_FOUND));
+
+        if (!user.isPasswordInitialized()) {
+            throw toAppException(ErrorCode.PASSWORD_NOT_INITIALIZED);
         }
 
         // 현재 비밀번호 검증
-        if (!passwordEncoder.matches(currentRawPassword, user.getPassword())){
-            throw new IllegalStateException("Current password does not match");
+        if (!passwordEncoder.matches(currentRawPassword, user.getPassword())) {
+            throw toAppException(ErrorCode.INVALID_CURRENT_PASSWORD);
         }
 
         String encoded = passwordEncoder.encode(newRawPassword);
         user.changePassword(encoded);
+    }
+
+    /**
+     * user-service 전용 ErrorCode → 공통 ApplicationException 변환
+     */
+    private ApplicationException toAppException(ErrorCode errorCode) {
+        return new ApplicationException(
+                errorCode.getHttpStatus(),   // HttpStatus 는 HttpStatusCode 구현체라 그대로 전달 가능
+                errorCode.getCode(),
+                errorCode.getDefaultMessage()
+        );
     }
 }

@@ -1,11 +1,13 @@
 package org.nextme.userservice.infrastructure.security.config;
 
+import org.nextme.common.jwt.JwtTokenProvider;
+import org.nextme.common.security.GatewayUserHeaderAuthenticationFilter;
 import org.nextme.userservice.domain.service.NextmeOAuth2UserService;
-import org.nextme.userservice.infrastructure.security.jwt.JwtAuthenticationFilter;
-import org.nextme.userservice.infrastructure.security.jwt.JwtTokenProvider;
+import org.nextme.userservice.infrastructure.security.DirectJwtAuthenticationFilter;
 import org.nextme.userservice.infrastructure.security.oauth.OAuth2LoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -14,51 +16,69 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
+
+    /**
+     * msa-common 에 있는 GatewayUserHeaderAuthenticationFilter 를
+     * user-service 빈으로 등록.
+     */
+    @Bean
+    public GatewayUserHeaderAuthenticationFilter gatewayUserHeaderAuthenticationFilter() {
+        return new GatewayUserHeaderAuthenticationFilter();
+    }
+
+    /**
+     * Authorization: Bearer 토큰 기반 인증 필터
+     */
+    @Bean
+    public DirectJwtAuthenticationFilter directJwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+        return new DirectJwtAuthenticationFilter(jwtTokenProvider);
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
+            GatewayUserHeaderAuthenticationFilter gatewayUserHeaderAuthenticationFilter,
+            DirectJwtAuthenticationFilter directJwtAuthenticationFilter,
             NextmeOAuth2UserService nextmeOAuth2UserService,
-            OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
-            JwtTokenProvider jwtTokenProvider   // JwtTokenProvider도 주입 받기
+            OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler
     ) throws Exception {
-
-        // 매 요청마다 돌 JwtAuthenticationFilter 생성 (JwtTokenProvider 사용)
-        JwtAuthenticationFilter jwtAuthenticationFilter =
-                new JwtAuthenticationFilter(jwtTokenProvider);
 
         http
                 .csrf(csrf -> csrf
-                        // h2-console 은 CSRF 검사에서 제외
                         .ignoringRequestMatchers("/h2-console/**")
                         .disable()
                 )
                 .headers(headers -> headers
-                        // H2 콘솔이 frame 을 쓰는데, sameOrigin 으로 허용해야 화면이 나옴
                         .frameOptions(frame -> frame.sameOrigin())
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())
-                // JWT 쓰는 구조니 세션은 STATELESS 로 변경
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // H2 콘솔은 개발용이니까 전체 허용
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/health", "/public/**").permitAll()
-                        .requestMatchers("/oauth2/**", "/login/**").permitAll() // OAuth2 로그인 관련 URL은 열어둠
+                        .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(
+                                "/v1/user/auth/login",
+                                "/v1/user/auth/refresh",
+                                "/v1/user/auth/logout"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 // OAuth2 로그인 (카카오/구글/네이버 공통)
                 .oauth2Login(oauth -> oauth
                         .userInfoEndpoint(userInfo -> userInfo
-                                .userService(nextmeOAuth2UserService)
+                                .userService(nextmeOAuth2UserService)  // <- 메서드 파라미터로 받은 걸 사용
                         )
-                        // .defaultSuccessUrl("/me", true)
                         .successHandler(oAuth2LoginSuccessHandler)
                 )
-                // UsernamePasswordAuthenticationFilter 전에 JWT 필터를 끼워 넣기
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // 1순위 : Gateway → X-User-* 헤더 기반 인증 필터 공통 필터 사용
+                .addFilterBefore(gatewayUserHeaderAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // 2순위 : Gateway 헤더가 없고 Authorization 만 있을 때 JWT 직접 인증
+                .addFilterBefore(directJwtAuthenticationFilter, GatewayUserHeaderAuthenticationFilter.class);
 
         return http.build();
     }

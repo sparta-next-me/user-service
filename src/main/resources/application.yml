@@ -5,6 +5,23 @@ spring:
   application:
     name: user-service
 
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nextme_db
+    username: nextme
+    password: nextme123
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
   config:
     import: "configserver:http://13.210.162.214:3100"
 
@@ -78,6 +95,6 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: my-nextme-jwt-secret-key-very-long-1234567890
-  access-token-validity-seconds: 1800      # 30분
-  refresh-token-validity-seconds: 1209600  # 14일
+  secret: "my-nextme-jwt-secret-key-very-long-1234567890"
+  access-token-validity-seconds: 1800
+  refresh-token-validity-seconds: 1209600
