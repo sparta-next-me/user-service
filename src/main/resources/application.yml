@@ -6,9 +6,9 @@ spring:
     name: user-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/nextme_db
-    username: nextme
-    password: nextme123
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
@@ -16,14 +16,27 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: userservice
+
+  flyway:
+    enabled: true
+    schemas: userservice
+    default-schema: userservice
+    baseline-on-migrate: true
 
   data:
     redis:
-      host: localhost
+      host: ${REDIS_HOST}
       port: 6379
 
   config:
-    import: "configserver:http://13.210.162.214:3100"
+    import: 'optional:configserver:'
+
+  cloud:
+    config:
+      discovery:
+        enabled: true
+        service-id: config-server
 
   security:
     oauth2:
@@ -83,12 +96,11 @@ spring:
 eureka:
   instance:
     prefer-ip-address: true
-
   client:
     register-with-eureka: true
     fetch-registry: true
     service-url:
-      defaultZone: http://13.210.162.214:3150/eureka/
+      defaultZone: http://34.50.7.8:3150/eureka/
 
 logging:
   level:
