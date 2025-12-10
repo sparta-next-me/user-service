@@ -92,7 +92,7 @@ eureka:
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
 
 jwt:
   secret: "my-nextme-jwt-secret-key-very-long-1234567890"

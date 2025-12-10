@@ -4,17 +4,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.nextme.common.jwt.JwtTokenPair;
 import org.nextme.common.jwt.JwtTokenProvider;
+import org.nextme.common.jwt.TokenBlacklistService;
 import org.nextme.common.security.UserPrincipal;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.infrastructure.exception.ErrorCode;
 import org.nextme.infrastructure.success.CustomResponse;
 import org.nextme.userservice.application.dto.*;
-import org.nextme.userservice.application.service.AdvisorApplicationService;
-import org.nextme.userservice.application.service.UserPasswordService;
-import org.nextme.userservice.application.service.UserSearchService;
-import org.nextme.userservice.application.service.UserProfileService;
+import org.nextme.userservice.application.service.*;
 import org.nextme.userservice.domain.UserId;
-import org.nextme.userservice.infrastructure.jwt.service.JwtBlacklistService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -51,7 +48,8 @@ public class UserController {
     private final UserProfileService userProfileService;
     private final AdvisorApplicationService advisorApplicationService;
     private final JwtTokenProvider jwtTokenProvider;
-    private final JwtBlacklistService jwtBlacklistService;
+    private final TokenBlacklistService jwtBlacklistService;
+    private final AuthTokenService authTokenService;
 
     /** Gateway 가 넣어준 userId(String) → 도메인 UserId 변환 공통 메서드 */
     private UserId toUserId(UserPrincipal principal) {
@@ -327,71 +325,25 @@ public class UserController {
     @PostMapping("/auth/refresh")
     public CustomResponse<TokenResponse> refreshToken(
             @RequestHeader(HttpHeaders.AUTHORIZATION) String authorization
-    ){
-        log.debug("[refreshToken] Authorization header = {}", authorization);
-
-        if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
-            log.debug("[refreshToken] Authorization header invalid");
-            throw invalidRefreshTokenException();
-        }
-
-        String refreshToken = authorization.substring(7);
-        log.debug("[refreshToken] raw refreshToken = {}", refreshToken);
-
-        // 1) 토큰 유효성 검사
-        boolean valid = jwtTokenProvider.validateToken(refreshToken);
-        log.debug("[refreshToken] validateToken = {}", valid);
-        if (!valid) {
-            throw invalidRefreshTokenException();
-        }
-
-        // 2) type == "refresh" 인지 확인
-        String type = jwtTokenProvider.getTokenType(refreshToken);
-        log.debug("[refreshToken] tokenType = {}", type);
-        if (!"refresh".equals(type)) {
-            throw invalidRefreshTokenException();
-        }
-
-        // 3) 블랙리스트 여부 확인
-        boolean blacklisted = jwtBlacklistService.isBlacklisted(refreshToken);
-        log.debug("[refreshToken] isBlacklisted = {}", blacklisted);
-        if (blacklisted) {
-            throw invalidRefreshTokenException();
-        }
-
-        // 4) 클레임에서 데이터 꺼내기
-        String userId = jwtTokenProvider.getUserId(refreshToken);
-        String name = jwtTokenProvider.getName(refreshToken);
-        String email = jwtTokenProvider.getEmail(refreshToken);
-        String slackId = jwtTokenProvider.getSlackId(refreshToken);
-        List<String> roles = jwtTokenProvider.getRoles(refreshToken);
-
-        log.debug("[refreshToken] claims userId={}, name={}, email={}, roles={}",
-                userId, name, email, roles);
-
-        // 4-1) 기존 refresh 토큰 블랙리스트에 등록
-        long remainingMs = jwtTokenProvider.getRemainingValidityMillis(refreshToken); // 남은 만료시간
-        jwtBlacklistService.blacklist(refreshToken, remainingMs);
-
-        // 5) 새 토큰 쌍 발급
-        JwtTokenPair newPair = jwtTokenProvider.generateTokenPair(
-                userId,
-                name,
-                email,
-                slackId,
-                roles
-        );
-
-        TokenResponse body = new TokenResponse(
-                userId,
-                name,
-                email,
-                slackId,
-                roles,
-                newPair.accessToken(),
-                newPair.refreshToken()
-        );
-
+    ) {
+        TokenResponse body = authTokenService.refreshToken(authorization);
         return CustomResponse.onSuccess("토큰이 재발급되었습니다.", body);
     }
+
+    /**
+     * 로그아웃
+     *
+     * - 요청 헤더
+     *   Authorization: Bearer {accessToken}
+     *   X-Refresh-Token: {refreshToken} (선택)
+     */
+    @PostMapping("/auth/logout")
+    public CustomResponse<Void> logout(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @RequestHeader(value = "X-Refresh-Token", required = false) String refreshTokenHeader
+    ) {
+        authTokenService.logout(authorization, refreshTokenHeader);
+        return CustomResponse.onSuccess("로그아웃 되었습니다.", null);
+    }
+
 }

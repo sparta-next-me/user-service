@@ -1,9 +1,10 @@
 package org.nextme.userservice.infrastructure.security.config;
 
 import org.nextme.common.jwt.JwtTokenProvider;
+import org.nextme.common.jwt.TokenBlacklistService;
+import org.nextme.common.security.DirectJwtAuthenticationFilter;
 import org.nextme.common.security.GatewayUserHeaderAuthenticationFilter;
 import org.nextme.userservice.domain.service.NextmeOAuth2UserService;
-import org.nextme.userservice.infrastructure.security.DirectJwtAuthenticationFilter;
 import org.nextme.userservice.infrastructure.security.oauth.OAuth2LoginSuccessHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
@@ -29,11 +32,37 @@ public class SecurityConfig {
     }
 
     /**
-     * Authorization: Bearer 토큰 기반 인증 필터
+     * Authorization: Bearer 토큰 기반 인증 필터.
+     *
+     *   여기 전달하는 ignorePathPrefixes(화이트리스트)는
+     *    "DirectJwtAuthenticationFilter 가 아예 동작하지 않아야 하는 URL" 들이다.
+     *
+     *  - 공통 규칙:
+     *    1) Authorization 헤더에 **refresh 토큰**이 들어오는 엔드포인트
+     *       → DirectJwtAuthenticationFilter 는 type != access 인 토큰을 401 로 막기 때문에
+     *         필터를 타면 안 된다.
+     *
+     *    2) 토큰이 **깨졌거나 만료된 경우에도 컨트롤러에서 조용히 처리하고 싶은 엔드포인트**
+     *       → 필터에서 401 을 내버리면 컨트롤러 로직까지 도달하지 못하므로
+     *         해당 URL 은 필터를 스킵해야 한다.
+     *
+     *    3) 그 외, "로그인/토큰 발급 등 인증 이전 단계에서 동작해야 하는 순수 Auth 엔드포인트"
+     *       → 컨벤션 차원에서 토큰 필터 범위 밖에 두고 싶다면 같이 넣어준다.
      */
     @Bean
-    public DirectJwtAuthenticationFilter directJwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
-        return new DirectJwtAuthenticationFilter(jwtTokenProvider);
+    public DirectJwtAuthenticationFilter directJwtAuthenticationFilter(
+            JwtTokenProvider jwtTokenProvider,
+            TokenBlacklistService tokenBlacklistService
+    ) {
+        return new DirectJwtAuthenticationFilter(
+                jwtTokenProvider,
+                tokenBlacklistService,
+                List.of(
+                        "/v1/user/auth/login",
+                        "/v1/user/auth/refresh",
+                        "/v1/user/auth/logout"
+                )
+        );
     }
 
     @Bean
