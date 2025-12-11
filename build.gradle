@@ -55,7 +55,10 @@ dependencies {
 
     implementation 'com.github.loki4j:loki-logback-appender:2.0.0'
 
-	compileOnly 'org.projectlombok:lombok'
+    // Swagger UI(springdoc-openapi)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'  // 2.x 아무거나
+
+    compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
