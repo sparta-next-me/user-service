@@ -60,7 +60,8 @@ public class SecurityConfig {
                 List.of(
                         "/v1/user/auth/login",
                         "/v1/user/auth/refresh",
-                        "/v1/user/auth/logout"
+                        "/v1/user/auth/logout",
+                        "/v3/api-docs/**"
                 )
         );
     }
@@ -91,6 +92,7 @@ public class SecurityConfig {
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(
+                                "/v3/api-docs/**",
                                 "/v1/user/auth/login",
                                 "/v1/user/auth/refresh",
                                 "/v1/user/auth/logout"
