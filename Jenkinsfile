@@ -2,24 +2,41 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME       = "user-service"          // 그냥 읽기용 이름
-        IMAGE_NAME     = "user-service"          // Docker 이미지 이름
-        IMAGE_TAG      = "latest"                // 태그
-        FULL_IMAGE     = "${IMAGE_NAME}:${IMAGE_TAG}"
+        APP_NAME        = "user-service"
 
-        CONTAINER_NAME = "user-service"          // 컨테이너 이름
-        HOST_PORT      = "12000"                 // 호스트에서 열 포트
-        CONTAINER_PORT = "12000"                 // 스프링 서버 포트 (server.port)
+        // GHCR 레지스트리 정보
+        REGISTRY        = "ghcr.io"
+        GH_OWNER        = "sparta-next-me"
+        IMAGE_REPO      = "user-service"
+        FULL_IMAGE      = "${REGISTRY}/${GH_OWNER}/${IMAGE_REPO}:latest"
 
-        // Jenkins 컨테이너 안에 만들어 놓은 env 파일 경로
-        ENV_FILE       = "/var/jenkins_home/envs/user-service.env"
+        CONTAINER_NAME  = "user-service"
+        HOST_PORT       = "12000"
+        CONTAINER_PORT  = "12000"
     }
 
     stages {
 
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
         stage('Build & Test') {
             steps {
-                sh './gradlew bootJar'
+                withCredentials([
+                    file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
+                ]) {
+                    sh '''
+                      set -a
+                      . "$ENV_FILE"       # DB_URL, DB_USERNAME, DB_PASSWORD, REDIS_HOST, OAUTH 키들 export
+                      set +a
+
+                      ./gradlew clean test --no-daemon
+                      ./gradlew bootJar --no-daemon
+                    '''
+                }
             }
         }
 
@@ -31,22 +48,43 @@ pipeline {
             }
         }
 
+        stage('Push Image') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'ghcr-credential',
+                        usernameVariable: 'REGISTRY_USER',
+                        passwordVariable: 'REGISTRY_TOKEN'
+                    )
+                ]) {
+                    sh """
+                      echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+                      docker push ${FULL_IMAGE}
+                    """
+                }
+            }
+        }
+
         stage('Deploy') {
             steps {
-                sh """
-                  # 기존 컨테이너 있으면 정지/삭제
-                  if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
-                    echo "Stopping existing container..."
-                    docker stop ${CONTAINER_NAME} || true
-                    docker rm ${CONTAINER_NAME} || true
-                  fi
+                withCredentials([
+                    file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
+                ]) {
+                    sh """
+                      # 기존 컨테이너 있으면 정지/삭제
+                      if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
+                        echo "Stopping existing container..."
+                        docker stop ${CONTAINER_NAME} || true
+                        docker rm ${CONTAINER_NAME} || true
+                      fi
 
-                  echo "Starting new user-service container..."
-                  docker run -d --name ${CONTAINER_NAME} \\
-                    --env-file ${ENV_FILE} \\
-                    -p ${HOST_PORT}:${CONTAINER_PORT} \\
-                    ${FULL_IMAGE}
-                """
+                      echo "Starting new user-service container..."
+                      docker run -d --name ${CONTAINER_NAME} \\
+                        --env-file \${ENV_FILE} \\
+                        -p ${HOST_PORT}:${CONTAINER_PORT} \\
+                        ${FULL_IMAGE}
+                    """
+                }
             }
         }
     }
