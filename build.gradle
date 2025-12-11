@@ -37,7 +37,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
-//	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
 //	implementation 'org.apache.kafka:kafka-streams'
 //	implementation 'org.springframework.amqp:spring-rabbit-stream'
 	implementation 'org.springframework.cloud:spring-cloud-starter-config'
@@ -54,7 +55,10 @@ dependencies {
 
     implementation 'com.github.loki4j:loki-logback-appender:2.0.0'
 
-	compileOnly 'org.projectlombok:lombok'
+    // Swagger UI(springdoc-openapi)
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'  // 2.x 아무거나
+
+    compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'com.h2database:h2'
 	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
