@@ -29,6 +29,11 @@ pipeline {
                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
                 ]) {
                     sh '''
+                      # 환경 파일 존재 확인
+                      if [ ! -f "$ENV_FILE" ]; then
+                        echo "Error: ENV_FILE not found at $ENV_FILE"
+                        exit 1
+                      fi
                       set -a
                       . "$ENV_FILE"       # DB_URL, DB_USERNAME, DB_PASSWORD, REDIS_HOST, OAUTH 키들 export
                       set +a
@@ -58,7 +63,9 @@ pipeline {
                     )
                 ]) {
                     sh """
-                      echo "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+                      set -e  # 아래 명령 중 하나라도 실패하면 즉시 종료
+
+                      echo "\$REGISTRY_TOKEN" | docker login ghcr.io -u "\$REGISTRY_USER" --password-stdin
                       docker push ${FULL_IMAGE}
                     """
                 }
