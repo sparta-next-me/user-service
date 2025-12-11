@@ -121,3 +121,7 @@ springdoc:
     doc-expansion: full
   paths-to-match:
     - /**
+
+openapi:
+  service:
+    url: http://34.50.7.8:3000
