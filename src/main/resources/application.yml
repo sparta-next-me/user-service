@@ -27,14 +27,14 @@ spring:
   kafka:
     bootstrap-servers: 34.22.87.75:9092, 34.22.87.75:9093, 34.22.87.75:9094 # Kafka 브로커(또는 클러스터) 접속 주소와 포트, 쉼표(,)로 복수 브로커 지정 가능
     consumer:
-      group-id: chat-group # 컨슈머 그룹 ID: 같은 그룹에 속한 컨슈머들은 파티션을 분담하여 처리
+      group-id: user-point-earned-group # 컨슈머 그룹 ID: 같은 그룹에 속한 컨슈머들은 파티션을 분담하여 처리
       auto-offset-reset: earliest # 컨슈머가 처음 시작할 때 오프셋이 없으면 어디서부터 읽을지 설정, earliest: 가장 오래된(처음) 메세지부터, latest: 최신 메세지 부터
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer # 메시지 키 역직렬화기(문자열로 디코딩)
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer # 메시지 값 역직렬화기(JSON -> 객체)
       properties:
         spring.json.trusted.packages: 'org.nextme.userservice.*'
         spring.json.use.type.headers: false
-        spring.json.value.default.type: 'org.nextme.userservice.application.evnt.dto.ChatMessage'
+        spring.json.value.default.type: 'org.nextme.userservice.application.evnt.dto.UserPointEarnedMessage'
 
   data:
     redis:
