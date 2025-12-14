@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: next-me
+  labels:
+    app: user-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      imagePullSecrets:
+        - name: ghcr-cred
+      containers:
+        - name: user-service
+          image: ghcr.io/sparta-next-me/user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 12000
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: next-me
+spec:
+  selector:
+    app: user-service
+  ports:
+    - name: http
+      port: 12000
+      targetPort: 12000
+  type: ClusterIP
