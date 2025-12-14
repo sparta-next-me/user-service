@@ -23,9 +23,17 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 12000
+
+          # Secret에 있는 환경변수 전부 가져오기
+          envFrom:
+            - secretRef:
+                name: user-service-env
+
+          # 추가로, 우리가 직접 지정할 env (프로필)
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+
           resources:
             requests:
               cpu: "100m"

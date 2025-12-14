@@ -72,27 +72,48 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
-            steps {
-                withCredentials([
-                    file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
-                ]) {
-                    sh """
-                      # 기존 컨테이너 있으면 정지/삭제
-                      if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
-                        echo "Stopping existing container..."
-                        docker stop ${CONTAINER_NAME} || true
-                        docker rm ${CONTAINER_NAME} || true
-                      fi
+       stage('Deploy to K8s') {
+           steps {
+               // 1) kubectl 설치 (없으면)
+               sh '''
+                 if ! command -v kubectl >/dev/null 2>&1; then
+                   echo "kubectl not found. installing..."
+                   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                   chmod +x kubectl
+                   mv kubectl /usr/local/bin/kubectl
+                 fi
+               '''
 
-                      echo "Starting new user-service container..."
-                      docker run -d --name ${CONTAINER_NAME} \\
-                        --env-file \${ENV_FILE} \\
-                        -p ${HOST_PORT}:${CONTAINER_PORT} \\
-                        ${FULL_IMAGE}
-                    """
-                }
-            }
-        }
+               // 2) kubeconfig + env 파일을 함께 사용
+               withCredentials([
+                   file(credentialsId: 'k3s-kubeconfig',      variable: 'KUBECONFIG_FILE'),
+                   file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
+               ]) {
+                   sh '''
+                     export KUBECONFIG=${KUBECONFIG_FILE}
+
+                     echo "Syncing env file to K8s Secret..."
+
+                     # 기존 Secret 있으면 삭제 (없으면 무시)
+                     kubectl delete secret user-service-env -n next-me || true
+
+                     # .env 파일로부터 Secret 생성
+                     kubectl create secret generic user-service-env \
+                       --from-env-file=${ENV_FILE} \
+                       -n next-me
+
+                     echo "Applying user-service manifest to k3s..."
+                     kubectl apply -f user-service.yaml -n next-me
+
+                     echo "Rollout status for user-service:"
+                     kubectl rollout status deployment/user-service -n next-me || true
+
+                     echo "Current user-service pods:"
+                     kubectl get pods -n next-me -l app=user-service
+                   '''
+               }
+           }
+       }
+
     }
 }
