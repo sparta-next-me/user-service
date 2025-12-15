@@ -6,7 +6,7 @@ plugins {
 
 group = 'org.nextme'
 version = '0.0.1-SNAPSHOT'
-description = 'Default Server'
+description = 'User Server'
 
 java {
 	toolchain {
