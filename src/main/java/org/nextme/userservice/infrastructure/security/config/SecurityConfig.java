@@ -106,6 +106,8 @@ public class SecurityConfig {
                 )
                 // OAuth2 로그인 (카카오/구글/네이버 공통)
                 .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(authorization -> authorization.baseUri("/oauth2/authorization"))
+                        .redirectionEndpoint(redirection -> redirection.baseUri("/login/oauth2/code/*"))
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(nextmeOAuth2UserService)  // <- 메서드 파라미터로 받은 걸 사용
                         )
@@ -117,6 +119,37 @@ public class SecurityConfig {
                 .addFilterBefore(directJwtAuthenticationFilter, GatewayUserHeaderAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    /**
+     * 프론트엔드 도메인을 허용하는 CORS 설정 Bean
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        
+        // 1. 허용할 오리진 (프론트엔드 도메인)
+        // 로컬 환경과 배포 환경 모두 포함
+        configuration.setAllowedOrigins(List.of(
+            "http://localhost:3000",
+            "http://sparta-nextme.xyz",
+            "https://sparta-nextme.xyz"
+        ));
+        
+        // 2. 허용할 HTTP 메서드 (GET, POST, PUT, DELETE 등)
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        
+        // 3. 자격 증명 (인증 정보) 허용 여부 (토큰을 쿠키에 담거나 세션 사용할 때 필수)
+        configuration.setAllowCredentials(true);
+        
+        // 4. 허용할 헤더 (Authorization 헤더 등)
+        configuration.setAllowedHeaders(List.of("*")); 
+
+        // 5. 모든 URL에 대해 이 설정을 적용
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        
+        return source;
     }
 
     @Bean
