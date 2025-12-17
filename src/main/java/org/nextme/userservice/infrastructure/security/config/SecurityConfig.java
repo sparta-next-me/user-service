@@ -106,9 +106,7 @@ public class SecurityConfig {
                 )
                 // OAuth2 로그인 (카카오/구글/네이버 공통)
                 .oauth2Login(oauth -> oauth
-                        .authorizationEndpoint(authorization -> authorization.baseUri("/oauth2/authorization"))
-                        .redirectionEndpoint(redirection -> redirection.baseUri("/login/oauth2/code/*"))
-                        .userInfoEndpoint(userInfo -> userInfo
+                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(nextmeOAuth2UserService)  // <- 메서드 파라미터로 받은 걸 사용
                         )
                         .successHandler(oAuth2LoginSuccessHandler)
