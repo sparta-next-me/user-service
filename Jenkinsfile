@@ -214,10 +214,7 @@ pipeline {
                       docker run -d --name ${CONTAINER_NAME} \\
                         -e EUREKA_INSTANCE_HOSTNAME='10.178.0.4' \\
                         --env-file \${ENV_FILE} \\
-                        -e TZ=${TZ} \\
                         -e JAVA_TOOL_OPTIONS="${JAVA_TZ_OPTS}" \\
-                        -v /etc/localtime:/etc/localtime:ro \\
-                        -v /etc/timezone:/etc/timezone:ro \\
                         -p ${HOST_PORT}:${CONTAINER_PORT} \\
                         ${FULL_IMAGE}
                     """
