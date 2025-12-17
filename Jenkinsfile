@@ -133,6 +133,10 @@ pipeline {
         CONTAINER_NAME  = "user-service"
         HOST_PORT       = "12000"
         CONTAINER_PORT  = "12000"
+        // 시간대(한국)
+        TZ              = "Asia/Seoul"
+        // (선택) JVM 타임존까지 고정하고 싶으면 사용
+        JAVA_TZ_OPTS    = "-Duser.timezone=Asia/Seoul"
     }
 
     stages {
@@ -203,11 +207,17 @@ pipeline {
                         echo "Stopping existing container..."
                         docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME} || true
+                        docker rmi ${FULL_IMAGE} || true
                       fi
 
                       echo "Starting new user-service container..."
                       docker run -d --name ${CONTAINER_NAME} \\
+                        -e EUREKA_INSTANCE_HOSTNAME='10.178.0.4' \\
                         --env-file \${ENV_FILE} \\
+                        -e TZ=${TZ} \\
+                        -e JAVA_TOOL_OPTIONS="${JAVA_TZ_OPTS}" \\
+                        -v /etc/localtime:/etc/localtime:ro \\
+                        -v /etc/timezone:/etc/timezone:ro \\
                         -p ${HOST_PORT}:${CONTAINER_PORT} \\
                         ${FULL_IMAGE}
                     """
