@@ -1,31 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <springProperty scope="context" name="APP_NAME"
-                    source="spring.application.name"
-                    defaultValue="unknown-service"/>
+    <!-- Spring Boot 속성 사용하려면 logback-spring.xml 이어야 함 -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="unknown-service"/>
+    <springProperty scope="context" name="PROFILE" source="spring.profiles.active" defaultValue="default"/>
 
-    <property name="HOST" value="${HOSTNAME:-unknown-host}"/>
+    <!-- (선택) Logback contextName도 서비스명으로 고정 -->
+    <contextName>${APP_NAME}</contextName>
 
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+
         <http>
-            <url>http://34.22.87.75:5100/loki/api/v1/push</url>
+            <!-- 운영에서는 ENV로 빼는 걸 추천 -->
+            <url>${LOKI_URL:-http://34.22.87.75:5100/loki/api/v1/push}</url>
         </http>
 
-        <!-- 핵심: label 태그를 쓰지 말고, pattern으로 labels를 한 번에 구성 -->
-        <format>
-            <label>
-                <pattern>app=${APP_NAME},host=${HOST},level=%level</pattern>
-            </label>
-            <message>
-                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-            </message>
-            <sortByTime>true</sortByTime>
-        </format>
+        <!-- Grafana 변수(app)가 여기 라벨을 읽습니다 -->
+        <labels>
+            app = ${APP_NAME}
+            profile = ${PROFILE}
+            host = ${HOSTNAME}
+            agent = loki4j
+        </labels>
+
+        <!-- 고카디널리티(많이 변하는 값)는 structuredMetadata로 -->
+        <structuredMetadata>
+            level = %level
+            logger = %logger
+            thread = %thread
+            traceId = %X{traceId}
+            spanId = %X{spanId}
+        </structuredMetadata>
+
+        <!-- 중요: <format> 쓰지 말고 <message> 사용 -->
+        <message>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </message>
+
+        <batch>
+            <!-- 라벨이 정적이면 true로 CPU 절약 -->
+            <staticLabels>true</staticLabels>
+        </batch>
+
+    </appender>
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>[${APP_NAME}] %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
     </appender>
 
     <root level="INFO">
         <appender-ref ref="LOKI"/>
+        <appender-ref ref="STDOUT"/>
     </root>
-
 </configuration>
