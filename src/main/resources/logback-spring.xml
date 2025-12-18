@@ -1,32 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- Spring 환경의 spring.application.name을 가져옴 -->
-    <springProperty scope="context"
-                    name="APP_NAME"
+    <springProperty scope="context" name="APP_NAME"
                     source="spring.application.name"
-                    defaultValue="user-service"/>
+                    defaultValue="unknown-service"/>
 
-    <springProperty scope="context"
-                    name="HOST"
-                    source="HOSTNAME"
-                    defaultValue="user-host"/>
+    <property name="HOST" value="${HOSTNAME:-unknown-host}"/>
 
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
             <url>http://34.22.87.75:5100/loki/api/v1/push</url>
         </http>
 
-        <labels>
-            <label name="app" value="${APP_NAME}"/>
-            <label name="host" value="${HOST}"/>
-            <label name="level" value="%level"/>
-        </labels>
-
-        <message class="com.github.loki4j.logback.JsonLayout"/>
+        <!-- 핵심: label 태그를 쓰지 말고, pattern으로 labels를 한 번에 구성 -->
+        <format>
+            <label>
+                <pattern>app=${APP_NAME},host=${HOST},level=%level</pattern>
+            </label>
+            <message>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
     </appender>
 
     <root level="INFO">
         <appender-ref ref="LOKI"/>
     </root>
+
 </configuration>
