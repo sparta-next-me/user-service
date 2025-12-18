@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Spring 환경의 spring.application.name을 가져옴 -->
+    <springProperty scope="context"
+                    name="APP_NAME"
+                    source="spring.application.name"
+                    defaultValue="user-service"/>
+
+    <springProperty scope="context"
+                    name="HOST"
+                    source="HOSTNAME"
+                    defaultValue="user-host"/>
+
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>http://34.22.87.75:5100/loki/api/v1/push</url>
+        </http>
+
+        <labels>
+            <label name="app" value="${APP_NAME}"/>
+            <label name="host" value="${HOST}"/>
+            <label name="level" value="%level"/>
+        </labels>
+
+        <message class="com.github.loki4j.logback.JsonLayout"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="LOKI"/>
+    </root>
+</configuration>
