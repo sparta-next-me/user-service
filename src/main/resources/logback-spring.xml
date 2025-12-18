@@ -11,11 +11,9 @@
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
 
         <http>
-            <!-- 운영에서는 ENV로 빼는 걸 추천 -->
             <url>${LOKI_URL:-http://34.22.87.75:5100/loki/api/v1/push}</url>
         </http>
 
-        <!-- Grafana 변수(app)가 여기 라벨을 읽습니다 -->
         <labels>
             app = ${APP_NAME}
             profile = ${PROFILE}
@@ -23,7 +21,6 @@
             agent = loki4j
         </labels>
 
-        <!-- 고카디널리티(많이 변하는 값)는 structuredMetadata로 -->
         <structuredMetadata>
             level = %level
             logger = %logger
@@ -32,13 +29,11 @@
             spanId = %X{spanId}
         </structuredMetadata>
 
-        <!-- 중요: <format> 쓰지 말고 <message> 사용 -->
         <message>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %msg%n</pattern>
         </message>
 
         <batch>
-            <!-- 라벨이 정적이면 true로 CPU 절약 -->
             <staticLabels>true</staticLabels>
         </batch>
 
@@ -46,7 +41,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>[${APP_NAME}] %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>[${APP_NAME}] %d{HH:mm:ss.SSS} %msg%n</pattern>
         </encoder>
     </appender>
 
