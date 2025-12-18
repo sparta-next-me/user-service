@@ -11,6 +11,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,6 +21,9 @@ import java.util.List;
 public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtTokenProvider jwtTokenProvider; // msa-common 의 JwtTokenProvider
+    private static final String FRONTEND_BASE_URI = "http://localhost:3000";
+
+    private static final String FRONTEND_REDIRECT_PATH = "/oauth/redirect"; // 프론트엔드에서 토큰을 처리할 경로
 
     @Override
     public void onAuthenticationSuccess(
@@ -61,26 +65,48 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 
         String safeSlackId = (slackId != null) ? slackId : "";
 
-        String body = """
-                {
-                  "userId": "%s",
-                  "name": "%s",
-                  "email": "%s",
-                  "slackId": "%s",
-                  "roles": %s,
-                  "accessToken": "%s",
-                  "refreshToken": "%s"
-                }
-                """.formatted(
-                userId,
-                name,
-                email,
-                safeSlackId,
-                roles.toString(),
-                tokenPair.accessToken(),
-                tokenPair.refreshToken()
-        );
+        String finalRedirectUrl = UriComponentsBuilder.fromUriString(FRONTEND_BASE_URI + FRONTEND_REDIRECT_PATH)
 
-        response.getWriter().write(body);
+                .queryParam("accessToken", tokenPair.accessToken())
+
+                .queryParam("refreshToken", tokenPair.refreshToken())
+
+                .queryParam("userId", userId)
+
+                .queryParam("email", email)
+
+                .queryParam("name", name)
+
+                .queryParam("slackId", safeSlackId)
+
+                .queryParam("roles", roles)
+                .encode()
+
+                .build()
+
+                .toUriString();
+
+//        String body = """
+//                {
+//                  "userId": "%s",
+//                  "name": "%s",
+//                  "email": "%s",
+//                  "slackId": "%s",
+//                  "roles": %s,
+//                  "accessToken": "%s",
+//                  "refreshToken": "%s"
+//                }
+//                """.formatted(
+//                userId,
+//                name,
+//                email,
+//                safeSlackId,
+//                roles.toString(),
+//                tokenPair.accessToken(),
+//                tokenPair.refreshToken()
+//        );
+
+        //response.getWriter().write(body);
+        response.sendRedirect(finalRedirectUrl);
     }
 }
