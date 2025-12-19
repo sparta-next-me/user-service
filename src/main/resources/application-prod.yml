@@ -14,7 +14,7 @@
 spring:
   config:
     # 도커 네트워크 내의 config-server 컨테이너로 연결
-    import: 'optional:configserver:http://config-server:3100'
+    import: "optional:configserver:http://34.50.7.8:3100"
 
   cloud:
     config:
@@ -31,4 +31,4 @@ eureka:
     fetch-registry: true
     service-url:
       # 도커 네트워크 내의 eureka-server 컨테이너 포트 3150으로 연결
-      defaultZone: http://eureka-server:3150/eureka/
+      defaultZone: http://34.50.7.8:3150/eureka/
