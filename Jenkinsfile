@@ -13,10 +13,13 @@ pipeline {
         CONTAINER_NAME  = "user-service"
         HOST_PORT       = "12000"
         CONTAINER_PORT  = "12000"
+
+        // 시간대(한국) 및 프로필 설정
+        TZ              = "Asia/Seoul"
+        SPRING_PROFILES_ACTIVE = "prod"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -34,12 +37,18 @@ pipeline {
                         echo "Error: ENV_FILE not found at $ENV_FILE"
                         exit 1
                       fi
+
+                      # 1. .env 파일 로드 (JWT_SECRET_KEY 등을 쉘 변수로 가져옴)
                       set -a
-                      . "$ENV_FILE"       # DB_URL, DB_USERNAME, DB_PASSWORD, REDIS_HOST, OAUTH 키들 export
+                      . "$ENV_FILE"
                       set +a
 
-                      ./gradlew clean test --no-daemon
-                      ./gradlew bootJar --no-daemon
+                      # 2. 빌드 및 테스트 수행
+                      # -Dspring.profiles.active=prod 를 주어 application-prod.yml의 config import 설정을 읽게 함
+                      # -DJWT_SECRET_KEY=${JWT_SECRET_KEY} 를 주어 테스트 시 Null 에러 방지
+                      ./gradlew clean test bootJar --no-daemon \
+                        -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE} \
+                        -DJWT_SECRET_KEY=${JWT_SECRET_KEY}
                     '''
                 }
             }
@@ -47,9 +56,7 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh """
-                  docker build -t ${FULL_IMAGE} .
-                """
+                sh "docker build -t ${FULL_IMAGE} ."
             }
         }
 
@@ -63,9 +70,8 @@ pipeline {
                     )
                 ]) {
                     sh """
-                      set -e  # 아래 명령 중 하나라도 실패하면 즉시 종료
-
-                      echo "\$REGISTRY_TOKEN" | docker login ghcr.io -u "\$REGISTRY_USER" --password-stdin
+                      set -e
+                      echo "\$REGISTRY_TOKEN" | docker login ${REGISTRY} -u "\$REGISTRY_USER" --password-stdin
                       docker push ${FULL_IMAGE}
                     """
                 }
@@ -78,21 +84,33 @@ pipeline {
                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
                 ]) {
                     sh """
-                      # 기존 컨테이너 있으면 정지/삭제
+                      # 기존 컨테이너 및 이미지 정리
                       if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
-                        echo "Stopping existing container..."
+                        echo "Stopping and removing existing container..."
                         docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME} || true
+                        docker rmi ${FULL_IMAGE} || true
                       fi
 
-                      echo "Starting new user-service container..."
+                      echo "Starting new user-service container with prod profile..."
+                      # 1. SPRING_PROFILES_ACTIVE 주입
+                      # 2. 컨테이너 내부 통신을 위해 컨테이너 이름 기반으로 Eureka/Config 연결
                       docker run -d --name ${CONTAINER_NAME} \\
+                        -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE} \\
+                        -e EUREKA_INSTANCE_HOSTNAME='10.178.0.4' \\
                         --env-file \${ENV_FILE} \\
                         -p ${HOST_PORT}:${CONTAINER_PORT} \\
                         ${FULL_IMAGE}
                     """
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            // 빌드 서버 용량 관리
+            sh "docker rmi ${FULL_IMAGE} || true"
         }
     }
 }
