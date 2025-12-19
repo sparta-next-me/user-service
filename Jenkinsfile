@@ -33,8 +33,7 @@ pipeline {
                       . "$ENV_FILE"
                       set +a
 
-                      # 테스트 시 prod 프로필을 활성화하여 application-prod.yml을 읽게 함
-                      # 동시에 .env에 정의된 JWT_SECRET_KEY를 주입하여 Null 에러 방지
+                      # 테스트 및 빌드 시 prod 프로필과 환경 변수 주입
                       ./gradlew clean test bootJar --no-daemon \
                         -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE} \
                         -DJWT_SECRET_KEY=${JWT_SECRET_KEY}
@@ -68,13 +67,16 @@ pipeline {
                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
                 ]) {
                     sh """
+                      # 기존 컨테이너 및 이미지 정리
                       if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
+                        echo "Stopping and removing existing container..."
                         docker stop ${CONTAINER_NAME} || true
                         docker rm ${CONTAINER_NAME} || true
                         docker rmi ${FULL_IMAGE} || true
                       fi
 
-                      # 배포 시 prod 프로필 명시
+                      echo "Starting new user-service container..."
+                      # 컨테이너 간 통신을 위해 프로필 명시 및 환경 변수 파일 적용
                       docker run -d --name ${CONTAINER_NAME} \\
                         -e SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE} \\
                         --env-file \${ENV_FILE} \\
@@ -84,12 +86,12 @@ pipeline {
                 }
             }
         }
-    }
-}
+    } // stages 종료
+
     post {
         always {
             // 빌드 서버 용량 관리
             sh "docker rmi ${FULL_IMAGE} || true"
         }
     }
-}
+} // pipeline 종료
