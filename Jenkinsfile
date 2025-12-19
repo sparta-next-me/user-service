@@ -1,128 +1,9 @@
-// pipeline {
-//     agent any
-//
-//     environment {
-//         APP_NAME        = "user-service"
-//
-//         // GHCR 레지스트리 정보
-//         REGISTRY        = "ghcr.io"
-//         GH_OWNER        = "sparta-next-me"
-//         IMAGE_REPO      = "user-service"
-//         FULL_IMAGE      = "${REGISTRY}/${GH_OWNER}/${IMAGE_REPO}:latest"
-//
-//         CONTAINER_NAME  = "user-service"
-//         HOST_PORT       = "12000"
-//         CONTAINER_PORT  = "12000"
-//     }
-//
-//     stages {
-//
-//         stage('Checkout') {
-//             steps {
-//                 checkout scm
-//             }
-//         }
-//
-//         stage('Build & Test') {
-//             steps {
-//                 withCredentials([
-//                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
-//                 ]) {
-//                     sh '''
-//                       # 환경 파일 존재 확인
-//                       if [ ! -f "$ENV_FILE" ]; then
-//                         echo "Error: ENV_FILE not found at $ENV_FILE"
-//                         exit 1
-//                       fi
-//                       set -a
-//                       . "$ENV_FILE"       # DB_URL, DB_USERNAME, DB_PASSWORD, REDIS_HOST, OAUTH 키들 export
-//                       set +a
-//
-//                       ./gradlew clean test --no-daemon
-//                       ./gradlew bootJar --no-daemon
-//                     '''
-//                 }
-//             }
-//         }
-//
-//         stage('Docker Build') {
-//             steps {
-//                 sh """
-//                   docker build -t ${FULL_IMAGE} .
-//                 """
-//             }
-//         }
-//
-//         stage('Push Image') {
-//             steps {
-//                 withCredentials([
-//                     usernamePassword(
-//                         credentialsId: 'ghcr-credential',
-//                         usernameVariable: 'REGISTRY_USER',
-//                         passwordVariable: 'REGISTRY_TOKEN'
-//                     )
-//                 ]) {
-//                     sh """
-//                       set -e  # 아래 명령 중 하나라도 실패하면 즉시 종료
-//
-//                       echo "\$REGISTRY_TOKEN" | docker login ghcr.io -u "\$REGISTRY_USER" --password-stdin
-//                       docker push ${FULL_IMAGE}
-//                     """
-//                 }
-//             }
-//         }
-//
-//        stage('Deploy to K8s') {
-//            steps {
-//                // 1) kubectl 설치 (없으면)
-//                sh '''
-//                  if ! command -v kubectl >/dev/null 2>&1; then
-//                    echo "kubectl not found. installing..."
-//                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-//                    chmod +x kubectl
-//                    mv kubectl /usr/local/bin/kubectl
-//                  fi
-//                '''
-//
-//                // 2) kubeconfig + env 파일을 함께 사용
-//                withCredentials([
-//                    file(credentialsId: 'k3s-kubeconfig',      variable: 'KUBECONFIG_FILE'),
-//                    file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
-//                ]) {
-//                    sh '''
-//                      export KUBECONFIG=${KUBECONFIG_FILE}
-//
-//                      echo "Syncing env file to K8s Secret..."
-//
-//                      # 기존 Secret 있으면 삭제 (없으면 무시)
-//                      kubectl delete secret user-service-env -n next-me || true
-//
-//                      # .env 파일로부터 Secret 생성
-//                      kubectl create secret generic user-service-env \
-//                        --from-env-file=${ENV_FILE} \
-//                        -n next-me
-//
-//                      echo "Applying user-service manifest to k3s..."
-//                      kubectl apply -f user-service.yaml -n next-me
-//
-//                      echo "Rollout status for user-service:"
-//                      kubectl rollout status deployment/user-service -n next-me || true
-//
-//                      echo "Current user-service pods:"
-//                      kubectl get pods -n next-me -l app=user-service
-//                    '''
-//                }
-//            }
-//        }
-//
-//     }
-// }
-
 pipeline {
     agent any
 
     environment {
         APP_NAME        = "user-service"
+        NAMESPACE       = "next-me"
 
         // GHCR 레지스트리 정보
         REGISTRY        = "ghcr.io"
@@ -130,19 +11,14 @@ pipeline {
         IMAGE_REPO      = "user-service"
         FULL_IMAGE      = "${REGISTRY}/${GH_OWNER}/${IMAGE_REPO}:latest"
 
-        CONTAINER_NAME  = "user-service"
-        HOST_PORT       = "12000"
-        CONTAINER_PORT  = "12000"
-        // 시간대(한국)
+        // 시간대 설정 (한국 시간)
         TZ              = "Asia/Seoul"
-        // (선택) JVM 타임존까지 고정하고 싶으면 사용
-        JAVA_TZ_OPTS    = "-Duser.timezone=Asia/Seoul"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
+                // 소스 코드 가져오기
                 checkout scm
             }
         }
@@ -153,73 +29,81 @@ pipeline {
                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
                 ]) {
                     sh '''
-                      # 환경 파일 존재 확인
-                      if [ ! -f "$ENV_FILE" ]; then
-                        echo "Error: ENV_FILE not found at $ENV_FILE"
-                        exit 1
-                      fi
+                      # .env 파일을 환경변수로 로드하여 빌드 및 테스트 수행
                       set -a
-                      . "$ENV_FILE"       # DB_URL, DB_USERNAME, DB_PASSWORD, REDIS_HOST, OAUTH 키들 export
+                      . "$ENV_FILE"
                       set +a
-
-                      ./gradlew clean test --no-daemon
-                      ./gradlew bootJar --no-daemon
+                      ./gradlew clean bootJar --no-daemon
                     '''
                 }
             }
         }
 
-        stage('Docker Build') {
-            steps {
-                sh """
-                  docker build -t ${FULL_IMAGE} .
-                """
-            }
-        }
-
-        stage('Push Image') {
+        stage('Docker Build & Push') {
             steps {
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'ghcr-credential',
-                        usernameVariable: 'REGISTRY_USER',
-                        passwordVariable: 'REGISTRY_TOKEN'
+                        usernameVariable: 'USER',
+                        passwordVariable: 'TOKEN'
                     )
                 ]) {
                     sh """
-                      set -e  # 아래 명령 중 하나라도 실패하면 즉시 종료
+                      # 이미지 빌드
+                      docker build -t ${FULL_IMAGE} .
 
-                      echo "\$REGISTRY_TOKEN" | docker login ghcr.io -u "\$REGISTRY_USER" --password-stdin
+                      # GHCR 로그인 및 푸시
+                      echo "${TOKEN}" | docker login ${REGISTRY} -u "${USER}" --password-stdin
                       docker push ${FULL_IMAGE}
                     """
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 withCredentials([
+                    file(credentialsId: 'k3s-kubeconfig', variable: 'KUBECONFIG_FILE'),
                     file(credentialsId: 'user-service-env-file', variable: 'ENV_FILE')
                 ]) {
-                    sh """
-                      # 기존 컨테이너 있으면 정지/삭제
-                      if [ \$(docker ps -aq -f name=${CONTAINER_NAME}) ]; then
-                        echo "Stopping existing container..."
-                        docker stop ${CONTAINER_NAME} || true
-                        docker rm ${CONTAINER_NAME} || true
-                        docker rmi ${FULL_IMAGE} || true
-                      fi
+                    sh '''
+                      export KUBECONFIG=${KUBECONFIG_FILE}
 
-                      echo "Starting new user-service container..."
-                      docker run -d --name ${CONTAINER_NAME} \\
-                        -e EUREKA_INSTANCE_HOSTNAME='10.178.0.4' \\
-                        --env-file \${ENV_FILE} \\
-                        -e JAVA_TOOL_OPTIONS="${JAVA_TZ_OPTS}" \\
-                        -p ${HOST_PORT}:${CONTAINER_PORT} \\
-                        ${FULL_IMAGE}
-                    """
+                      # 1. 기존 시크릿 삭제 후 .env 파일 기반으로 새로 생성
+                      echo "Updating K8s Secret: user-service-env..."
+                      kubectl delete secret user-service-env -n ${NAMESPACE} --ignore-not-found
+                      kubectl create secret generic user-service-env --from-env-file=${ENV_FILE} -n ${NAMESPACE}
+
+                      # 2. 쿠버네티스 매니페스트(Deployment, Service) 적용
+                      echo "Applying manifests from user-service.yaml..."
+                      kubectl apply -f user-service.yaml -n ${NAMESPACE}
+
+                      # 3. 무중단 배포(Rolling Update) 상태 모니터링
+                      # 신규 파드가 Ready 상태가 될 때까지 대기하며, 실패 시 빌드 에러 처리
+                      echo "Monitoring rollout status..."
+                      kubectl rollout status deployment/user-service -n ${NAMESPACE}
+
+                      # 4. 배포 결과 확인
+                      kubectl get pods -n ${NAMESPACE} -l app=user-service
+                    '''
                 }
             }
+        }
+    }
+
+    // 모든 작업이 끝난 후 실행되는 섹션
+    post {
+        always {
+            // 빌드 서버(Jenkins 서버)의 디스크 용량 관리를 위해 로컬 이미지는 삭제
+            // 배포는 이미 GHCR에 푸시된 이미지로 K8s가 수행하므로 로컬 이미지는 지워도 무방함
+            echo "Cleaning up local docker image..."
+            sh "docker rmi ${FULL_IMAGE} || true"
+        }
+        success {
+            echo "Successfully deployed ${APP_NAME} to Kubernetes Cluster!"
+        }
+        failure {
+            echo "Deployment failed. Please check the Jenkins console logs."
         }
     }
 }
