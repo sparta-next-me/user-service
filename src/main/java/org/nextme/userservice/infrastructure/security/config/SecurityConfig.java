@@ -93,13 +93,15 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/health", "/public/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/v1/user/feign/profile").permitAll()
                         .requestMatchers("/error").permitAll()
                         // Actuator (Prometheus scrape용) 허용
                         .requestMatchers("/actuator/prometheus", "/actuator/health").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/api-docs.html"
+                                "/api-docs.html",
+                                "/v1/user/feign/profile"
                         ).permitAll()
                         // Auth API
                         .requestMatchers(

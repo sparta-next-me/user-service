@@ -158,6 +158,21 @@ public class UserController {
     }
 
     /**
+     * 로그인한 유저 닉네임 조회 (페인 전용)
+     *
+     * 요청: GET /v1/user/feing/profile
+     * 응답: CustomResponse<UserFeignResponse>
+     */
+    @GetMapping("/feign/profile")
+    public CustomResponse<UserFeignResponse> getFeignMe(
+            @RequestParam("userId") String userIdStr // 쿼리 파라미터로 ID를 받음
+    ) {
+        UserId userId = UserId.of(UUID.fromString(userIdStr));
+        UserFeignResponse response = userSearchService.getFeignProfile(userId);
+        return CustomResponse.onSuccess("내 정보 조회에 성공했습니다.", response);
+    }
+
+    /**
      * 로그인한 유저 본인의 기본 정보 수정
      *
      * 요청: Fatch /v1/user/me
