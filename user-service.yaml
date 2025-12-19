@@ -7,7 +7,6 @@ metadata:
     app: user-service
 spec:
   replicas: 1
-  # 업데이트 시 기존 파드를 먼저 죽이지 않고 새 파드를 띄워 가동 중단 최소화
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -22,45 +21,46 @@ spec:
         app: user-service
     spec:
       imagePullSecrets:
-        - name: ghcr-cred # GHCR에서 이미지를 가져오기 위한 인증 정보
+        - name: ghcr-cred
       containers:
         - name: user-service
           image: ghcr.io/sparta-next-me/user-service:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 12000 # 스프링 부트 애플리케이션 포트
+            - containerPort: 12000
 
-          # 1. Secret으로부터 모든 환경변수 로드 (.env 파일 내용이 여기로 주입됨)
           envFrom:
             - secretRef:
                 name: user-service-env
 
-          # 2. 추가적인 명시적 환경변수 (Secret보다 우선순위가 높음)
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
-            # 유레카 등록 시 파드의 호스트네임 대신 실제 IP를 사용하도록 강제
             - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
               value: "true"
+            # [추가] 자바 프로세스가 사용할 메모리 범위를 명시적으로 지정
+            - name: JAVA_OPTS
+              value: "-Xms512m -Xmx768m"
 
-          # [추가] 헬스체크: 앱이 정상인지, 트래픽을 받을 준비가 됐는지 체크
-          readinessProbe: # 트래픽 투입 여부 결정
+          # [수정] 앱이 뜨는 시간이 40초 정도 걸리므로 지연 시간을 늘림
+          readinessProbe:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 30 # 앱 구동 시간을 고려하여 30초 후 첫 체크
+            initialDelaySeconds: 60 # 30초에서 60초로 변경
             periodSeconds: 10
-          livenessProbe: # 컨테이너 재시작 여부 결정
+          livenessProbe:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 60
+            initialDelaySeconds: 90 # 60초에서 90초로 변경
             periodSeconds: 20
 
+          # [수정] 메모리 한계치를 상향 조정 (핵심!)
           resources:
             requests:
-              cpu: "100m"
-              memory: "256Mi"
+              cpu: "200m"      # 100m에서 약간 상향
+              memory: "512Mi"  # 256Mi에서 상향
             limits:
               cpu: "500m"
               memory: "512Mi"
@@ -75,6 +75,6 @@ spec:
     app: user-service
   ports:
     - name: http
-      port: 12000      # 서비스 포트
-      targetPort: 12000 # 컨테이너 내부 포트
-  type: ClusterIP # 클러스터 내부 통신용 (Gateway를 통해서만 접근 가능)
+      port: 12000
+      targetPort: 12000
+  type: ClusterIP
