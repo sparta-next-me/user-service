@@ -1,12 +1,27 @@
+#spring:
+#  config:
+#    # 쿠버네티스 내부 컨피그 서버 서비스 주소
+#    import: 'optional:configserver:http://config-server.next-me.svc.cluster.local:3100'
+#
+#eureka:
+#  instance:
+#    prefer-ip-address: true
+#  client:
+#    service-url:
+#      # 쿠버네티스 내부 유레카 서비스 주소
+#      defaultZone: http://eureka-server.next-me.svc.cluster.local:3151/eureka/
+
 spring:
   config:
-    # 쿠버네티스 내부 컨피그 서버 서비스 주소
-    import: 'optional:configserver:http://config-server.next-me.svc.cluster.local:3100'
+    # 도커 컨테이너 이름인 config-server와 내부 포트 3100 사용
+    import: 'optional:configserver:http://config-server:3100'
 
 eureka:
   instance:
+    # 도커 환경에서 IP 기반 등록을 선호함
     prefer-ip-address: true
   client:
     service-url:
-      # 쿠버네티스 내부 유레카 서비스 주소
-      defaultZone: http://eureka-server.next-me.svc.cluster.local:3151/eureka/
+      # 도커 컨테이너 이름인 eureka-server와 외부 맵핑 포트 3150 사용
+      # (docker ps 결과 3150으로 확인됨)
+      defaultZone: http://eureka-server:3150/eureka/
