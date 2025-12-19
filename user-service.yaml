@@ -47,13 +47,13 @@ spec:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 60 # 30초에서 60초로 변경
+            initialDelaySeconds: 120 # 30초에서 60초로 변경
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 90 # 60초에서 90초로 변경
+            initialDelaySeconds: 180 # 60초에서 90초로 변경
             periodSeconds: 20
 
           # [수정] 메모리 한계치를 상향 조정 (핵심!)
