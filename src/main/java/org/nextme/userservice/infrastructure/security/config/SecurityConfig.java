@@ -64,7 +64,8 @@ public class SecurityConfig {
                         "/v1/user/auth/login",
                         "/v1/user/auth/refresh",
                         "/v1/user/auth/logout",
-                        "/v3/api-docs/**"
+                        "/v3/api-docs/**",
+                        "/v1/user/feign/profile"
                 )
         );
     }
