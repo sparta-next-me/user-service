@@ -3,6 +3,7 @@ package org.nextme.userservice.application.service;
 import lombok.RequiredArgsConstructor;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.infrastructure.exception.ErrorCode;
+import org.nextme.userservice.application.dto.UserFeignResponse;
 import org.nextme.userservice.application.dto.UserResponse;
 import org.nextme.userservice.domain.User;
 import org.nextme.userservice.domain.UserId;
@@ -31,5 +32,13 @@ public class UserSearchService {
                 .orElseThrow(() -> new ApplicationException(ErrorCode.USER_NOT_FOUND));
 
         return UserResponse.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserFeignResponse getFeignProfile(UserId userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApplicationException(ErrorCode.USER_NOT_FOUND));
+
+        return UserFeignResponse.from(user);
     }
 }
