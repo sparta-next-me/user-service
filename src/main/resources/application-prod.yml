@@ -13,15 +13,19 @@
 
 spring:
   config:
-    # 도커 컨테이너 이름인 config-server와 내부 포트 3100 사용
-    import: 'optional:configserver:http://config-server:3100'
+    import: 'optional:configserver:'
+  #config server 임시 차단
+  cloud:
+    config:
+      enabled: true
+      service-id: config-server
 
 eureka:
   instance:
-    # 도커 환경에서 IP 기반 등록을 선호함
-    prefer-ip-address: true
+    prefer-ip-address: false
+    hostname: localhost
   client:
+    register-with-eureka: true
+    fetch-registry: true
     service-url:
-      # 도커 컨테이너 이름인 eureka-server와 외부 맵핑 포트 3150 사용
-      # (docker ps 결과 3150으로 확인됨)
       defaultZone: http://eureka-server:3150/eureka/
