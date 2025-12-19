@@ -7,6 +7,12 @@ metadata:
     app: user-service
 spec:
   replicas: 1
+  # 업데이트 시 기존 파드를 먼저 죽이지 않고 새 파드를 띄워 가동 중단 최소화
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
   selector:
     matchLabels:
       app: user-service
@@ -16,23 +22,40 @@ spec:
         app: user-service
     spec:
       imagePullSecrets:
-        - name: ghcr-cred
+        - name: ghcr-cred # GHCR에서 이미지를 가져오기 위한 인증 정보
       containers:
         - name: user-service
           image: ghcr.io/sparta-next-me/user-service:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 12000
+            - containerPort: 12000 # 스프링 부트 애플리케이션 포트
 
-          # Secret에 있는 환경변수 전부 가져오기
+          # 1. Secret으로부터 모든 환경변수 로드 (.env 파일 내용이 여기로 주입됨)
           envFrom:
             - secretRef:
                 name: user-service-env
 
-          # 추가로, 우리가 직접 지정할 env (프로필)
+          # 2. 추가적인 명시적 환경변수 (Secret보다 우선순위가 높음)
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            # 유레카 등록 시 파드의 호스트네임 대신 실제 IP를 사용하도록 강제
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+
+          # [추가] 헬스체크: 앱이 정상인지, 트래픽을 받을 준비가 됐는지 체크
+          readinessProbe: # 트래픽 투입 여부 결정
+            httpGet:
+              path: /actuator/health
+              port: 12000
+            initialDelaySeconds: 30 # 앱 구동 시간을 고려하여 30초 후 첫 체크
+            periodSeconds: 10
+          livenessProbe: # 컨테이너 재시작 여부 결정
+            httpGet:
+              path: /actuator/health
+              port: 12000
+            initialDelaySeconds: 60
+            periodSeconds: 20
 
           resources:
             requests:
@@ -41,7 +64,6 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-
 ---
 apiVersion: v1
 kind: Service
@@ -53,6 +75,6 @@ spec:
     app: user-service
   ports:
     - name: http
-      port: 12000
-      targetPort: 12000
-  type: ClusterIP
+      port: 12000      # 서비스 포트
+      targetPort: 12000 # 컨테이너 내부 포트
+  type: ClusterIP # 클러스터 내부 통신용 (Gateway를 통해서만 접근 가능)
