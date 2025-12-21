@@ -11,6 +11,8 @@ import org.nextme.userservice.domain.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * 유저 조회 관련 읽기 전용 서비스
  */
@@ -40,5 +42,12 @@ public class UserSearchService {
                 .orElseThrow(() -> new ApplicationException(ErrorCode.USER_NOT_FOUND));
 
         return UserFeignResponse.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(UserResponse::from) // User 엔티티를 DTO로 변환하는 메서드 필요
+                .toList();
     }
 }

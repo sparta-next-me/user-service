@@ -8,6 +8,7 @@ import lombok.ToString;
 import org.nextme.common.jpa.BaseEntity;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.userservice.application.error.ErrorCode;
+import org.springframework.http.HttpStatus;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -97,6 +98,20 @@ public class User extends BaseEntity {
      */
     @Column(name = "password_initialized", nullable = false)
     private boolean passwordInitialized;
+
+    /**
+     * 이메일 주소
+     * - 일반 회원가입 및 소셜 로그인 공통 사용
+     */
+    @Column(name = "email", length = 100)
+    private String email;
+
+    /**
+     * 누적 포인트
+     * - 기본값 0
+     */
+    @Column(name = "point", nullable = false)
+    private Long point = 0L;
 
     // ===== 소셜 계정 컬렉션 =====
 
@@ -318,5 +333,21 @@ public class User extends BaseEntity {
                 this.profile.getCareerYears(),
                 false      // active → false
         );
+    }
+
+    /**
+     * 포인트 적립 로직
+     * - 비즈니스 규칙: 적립 금액은 0보다 커야 함
+     */
+    public void addPoint(Long amount) {
+        if (amount == null || amount <= 0) {
+            // 필요 시 전용 에러 코드 사용 (예: INVALID_POINT_AMOUNT)
+            throw new ApplicationException(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_POINT_AMOUNT",
+                    "적립할 포인트는 0보다 커야 합니다."
+            );
+        }
+        this.point += amount;
     }
 }
