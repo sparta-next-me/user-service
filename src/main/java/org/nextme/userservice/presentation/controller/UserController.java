@@ -2,9 +2,6 @@ package org.nextme.userservice.presentation.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.nextme.common.jwt.JwtTokenPair;
-import org.nextme.common.jwt.JwtTokenProvider;
-import org.nextme.common.jwt.TokenBlacklistService;
 import org.nextme.common.security.UserPrincipal;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.infrastructure.exception.ErrorCode;
@@ -15,7 +12,6 @@ import org.nextme.userservice.domain.UserId;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,8 +43,7 @@ public class UserController {
     private final UserSearchService userSearchService;
     private final UserProfileService userProfileService;
     private final AdvisorApplicationService advisorApplicationService;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final TokenBlacklistService jwtBlacklistService;
+    private final UserPointService userPointService;
     private final AuthTokenService authTokenService;
 
     /** Gateway 가 넣어준 userId(String) → 도메인 UserId 변환 공통 메서드 */
@@ -359,6 +354,25 @@ public class UserController {
     ) {
         authTokenService.logout(authorization, refreshTokenHeader);
         return CustomResponse.onSuccess("로그아웃 되었습니다.", null);
+    }
+
+    /** 전체 유저 조회 (관리자 전용 예시) */
+    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
+    @GetMapping
+    public CustomResponse<List<UserResponse>> getAllUsers() {
+        return CustomResponse.onSuccess("전체 유저 조회 성공", userSearchService.getAllUsers());
+    }
+
+    /** 포인트 적립 */
+    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/me/points")
+    public CustomResponse<Void> addPoint(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody AddPointRequest request
+    ) {
+        UserId userId = toUserId(principal);
+        userPointService.addPoint(userId, request.amount());
+        return CustomResponse.onSuccess("포인트가 적립되었습니다.", null);
     }
 
 }

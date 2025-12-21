@@ -62,6 +62,7 @@ public class SecurityConfig {
                 tokenBlacklistService,
                 List.of(
                         "/v1/user/auth/login",
+                        "/v1/user/auth/signup",
                         "/v1/user/auth/refresh",
                         "/v1/user/auth/logout",
                         "/v3/api-docs/**",
@@ -93,7 +94,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/health", "/public/**").permitAll()
-                        .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/**", "/v1/user/auth/login", "/v1/user/auth/signup").permitAll()
                         .requestMatchers("/v1/user/feign/profile").permitAll()
                         .requestMatchers("/error").permitAll()
                         // Actuator (Prometheus scrape용) 허용

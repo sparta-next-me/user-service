@@ -19,4 +19,8 @@ public interface UserRepository extends JpaRepository<User, UserId> {
 
     // 어드바이저 신청(PENDING) 상태인 유저 목록 조회
     List<User> findByAdvisorStatus(AdvisorStatus advisorStatus);
+
+    boolean existsByUserName(String userName);
+
+    Optional<User> findByUserName(String userName);
 }
