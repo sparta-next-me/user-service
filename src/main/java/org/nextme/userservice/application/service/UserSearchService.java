@@ -3,13 +3,20 @@ package org.nextme.userservice.application.service;
 import lombok.RequiredArgsConstructor;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.infrastructure.exception.ErrorCode;
+import org.nextme.infrastructure.success.CustomResponse;
 import org.nextme.userservice.application.dto.UserFeignResponse;
 import org.nextme.userservice.application.dto.UserResponse;
 import org.nextme.userservice.domain.User;
 import org.nextme.userservice.domain.UserId;
 import org.nextme.userservice.domain.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.List;
 
@@ -44,10 +51,10 @@ public class UserSearchService {
         return UserFeignResponse.from(user);
     }
 
+    /** 전체 유저 조회 (페이징 적용) */
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
-        return userRepository.findAll().stream()
-                .map(UserResponse::from) // User 엔티티를 DTO로 변환하는 메서드 필요
-                .toList();
+    public Page<UserResponse> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable) // Page<User> 반환
+                .map(UserResponse::from);      // 엔티티를 DTO로 변환
     }
 }

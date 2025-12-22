@@ -9,6 +9,10 @@ import org.nextme.infrastructure.success.CustomResponse;
 import org.nextme.userservice.application.dto.*;
 import org.nextme.userservice.application.service.*;
 import org.nextme.userservice.domain.UserId;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -356,11 +360,13 @@ public class UserController {
         return CustomResponse.onSuccess("로그아웃 되었습니다.", null);
     }
 
-    /** 전체 유저 조회 (관리자 전용 예시) */
+    /** 전체 유저 조회 (관리자 전용, 페이징 적용) */
     @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
-    @GetMapping
-    public CustomResponse<List<UserResponse>> getAllUsers() {
-        return CustomResponse.onSuccess("전체 유저 조회 성공", userSearchService.getAllUsers());
+    @GetMapping("/admin/users")
+    public CustomResponse<Page<UserResponse>> getAllUsers(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return CustomResponse.onSuccess("전체 유저 조회 성공", userSearchService.getAllUsers(pageable));
     }
 
     /** 포인트 적립 */

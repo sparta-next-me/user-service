@@ -19,14 +19,26 @@ public class KakaoUserProfileMapper implements SocialUserProfileMapper {
     public SocialUserProfile map(OAuth2UserRequest userRequest, OAuth2User oAuth2User) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
+        // 1. 카카오 ID 추출
         Long kakaoId = ((Number) attributes.get("id")).longValue();
-        Map<String, Object> kakaoAccount =
-                (Map<String, Object>) attributes.get("kakaoAccount");
-        String email = kakaoAccount != null ? (String) kakaoAccount.get("email") : null;
 
-        Map<String, Object> profile =
-                kakaoAccount != null ? (Map<String, Object>) kakaoAccount.get("profile") : null;
-        String nickname = profile != null ? (String) profile.get("nickname") : "카카오사용자";
+        // 2. kakao_account 추출 (오타 수정: kakaoAccount -> kakao_account)
+        Map<String, Object> kakaoAccount =
+                (Map<String, Object>) attributes.get("kakao_account");
+
+        String email = null;
+        String nickname = "카카오사용자";
+
+        if (kakaoAccount != null) {
+            // 이메일 추출
+            email = (String) kakaoAccount.get("email");
+
+            // 3. profile 추출
+            Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
+            if (profile != null) {
+                nickname = (String) profile.get("nickname");
+            }
+        }
 
         return new SocialUserProfile(
                 SocialProvider.KAKAO,
