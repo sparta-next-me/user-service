@@ -76,4 +76,5 @@ spec:
     - name: http
       port: 12000
       targetPort: 12000
-  type: ClusterIP
+      nodePort: 32000
+  type: NodePort
