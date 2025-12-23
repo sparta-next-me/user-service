@@ -47,13 +47,13 @@ spec:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 150 # 120초에서 150초로 늘림
+            initialDelaySeconds: 80
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 12000
-            initialDelaySeconds: 200 # 180초에서 200초로 늘림
+            initialDelaySeconds:  120
             periodSeconds: 20
 
           resources:
