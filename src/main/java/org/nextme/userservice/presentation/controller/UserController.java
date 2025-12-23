@@ -361,7 +361,6 @@ public class UserController {
     }
 
     /** 전체 유저 조회 (관리자 전용, 페이징 적용) */
-    @PreAuthorize("hasAnyRole('MASTER', 'MANAGER')")
     @GetMapping("/admin/users")
     public CustomResponse<Page<UserResponse>> getAllUsers(
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
