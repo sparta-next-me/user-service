@@ -7,6 +7,11 @@ metadata:
     app: user-service
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
   selector:
     matchLabels:
       app: user-service
@@ -24,24 +29,40 @@ spec:
           ports:
             - containerPort: 12000
 
-          # Secret에 있는 환경변수 전부 가져오기
           envFrom:
             - secretRef:
                 name: user-service-env
 
-          # 추가로, 우리가 직접 지정할 env (프로필)
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
+            - name: EUREKA_INSTANCE_PREFER_IP_ADDRESS
+              value: "true"
+            # 자바 옵션 유지
+            - name: JAVA_OPTS
+              value: "-Xms512m -Xmx768m"
+
+          # [수정] 현재 로그상 구동 속도를 고려하여 시간을 더 넉넉하게 잡음
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 12000
+            initialDelaySeconds: 150 # 120초에서 150초로 늘림
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 12000
+            initialDelaySeconds: 200 # 180초에서 200초로 늘림
+            periodSeconds: 20
 
           resources:
             requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
+              cpu: "200m"
               memory: "512Mi"
-
+            limits:
+              cpu: "1000m"     # [수정] 구동 속도를 높이기 위해 CPU도 1코어로 상향
+              memory: "1Gi"    # [핵심 수정] 512Mi -> 1Gi로 반드시 변경 (안 그러면 또 죽음)
 ---
 apiVersion: v1
 kind: Service
@@ -55,4 +76,5 @@ spec:
     - name: http
       port: 12000
       targetPort: 12000
-  type: ClusterIP
+      nodePort: 32000
+  type: NodePort

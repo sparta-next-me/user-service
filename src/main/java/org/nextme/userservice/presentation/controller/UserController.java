@@ -2,9 +2,6 @@ package org.nextme.userservice.presentation.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.nextme.common.jwt.JwtTokenPair;
-import org.nextme.common.jwt.JwtTokenProvider;
-import org.nextme.common.jwt.TokenBlacklistService;
 import org.nextme.common.security.UserPrincipal;
 import org.nextme.infrastructure.exception.ApplicationException;
 import org.nextme.infrastructure.exception.ErrorCode;
@@ -12,10 +9,13 @@ import org.nextme.infrastructure.success.CustomResponse;
 import org.nextme.userservice.application.dto.*;
 import org.nextme.userservice.application.service.*;
 import org.nextme.userservice.domain.UserId;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,8 +47,7 @@ public class UserController {
     private final UserSearchService userSearchService;
     private final UserProfileService userProfileService;
     private final AdvisorApplicationService advisorApplicationService;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final TokenBlacklistService jwtBlacklistService;
+    private final UserPointService userPointService;
     private final AuthTokenService authTokenService;
 
     /** Gateway 가 넣어준 userId(String) → 도메인 UserId 변환 공통 메서드 */
@@ -154,6 +153,21 @@ public class UserController {
 
         UserResponse response = userSearchService.getMyProfile(userId);
 
+        return CustomResponse.onSuccess("내 정보 조회에 성공했습니다.", response);
+    }
+
+    /**
+     * 로그인한 유저 닉네임 조회 (페인 전용)
+     *
+     * 요청: GET /v1/user/feing/profile
+     * 응답: CustomResponse<UserFeignResponse>
+     */
+    @GetMapping("/feign/profile")
+    public CustomResponse<UserFeignResponse> getFeignMe(
+            @RequestParam("userId") String userIdStr // 쿼리 파라미터로 ID를 받음
+    ) {
+        UserId userId = UserId.of(UUID.fromString(userIdStr));
+        UserFeignResponse response = userSearchService.getFeignProfile(userId);
         return CustomResponse.onSuccess("내 정보 조회에 성공했습니다.", response);
     }
 
@@ -344,6 +358,26 @@ public class UserController {
     ) {
         authTokenService.logout(authorization, refreshTokenHeader);
         return CustomResponse.onSuccess("로그아웃 되었습니다.", null);
+    }
+
+    /** 전체 유저 조회 (관리자 전용, 페이징 적용) */
+    @GetMapping("/admin/users")
+    public CustomResponse<Page<UserResponse>> getAllUsers(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return CustomResponse.onSuccess("전체 유저 조회 성공", userSearchService.getAllUsers(pageable));
+    }
+
+    /** 포인트 적립 */
+    @PreAuthorize("hasRole('USER')")
+    @PostMapping("/me/points")
+    public CustomResponse<Void> addPoint(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody AddPointRequest request
+    ) {
+        UserId userId = toUserId(principal);
+        userPointService.addPoint(userId, request.amount());
+        return CustomResponse.onSuccess("포인트가 적립되었습니다.", null);
     }
 
 }

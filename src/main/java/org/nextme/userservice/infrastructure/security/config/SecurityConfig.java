@@ -15,6 +15,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
@@ -59,9 +62,11 @@ public class SecurityConfig {
                 tokenBlacklistService,
                 List.of(
                         "/v1/user/auth/login",
+                        "/v1/user/auth/signup",
                         "/v1/user/auth/refresh",
                         "/v1/user/auth/logout",
-                        "/v3/api-docs/**"
+                        "/v3/api-docs/**",
+                        "/v1/user/feign/profile"
                 )
         );
     }
@@ -89,12 +94,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/", "/health", "/public/**").permitAll()
-                        .requestMatchers("/oauth2/**", "/login/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/**", "/v1/user/auth/login", "/v1/user/auth/signup").permitAll()
+                        .requestMatchers("/v1/user/feign/profile").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Actuator (Prometheus scrape용) 허용
+                        .requestMatchers("/actuator/prometheus", "/actuator/health").permitAll()
                         .requestMatchers(
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/api-docs.html"
+                                "/api-docs.html",
+                                "/v1/user/feign/profile"
                         ).permitAll()
                         // Auth API
                         .requestMatchers(
@@ -106,6 +115,12 @@ public class SecurityConfig {
                 )
                 // OAuth2 로그인 (카카오/구글/네이버 공통)
                 .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(authorization -> authorization
+                                .baseUri("/oauth2/authorization")
+                        )
+                        .redirectionEndpoint(redirection ->
+                                redirection.baseUri("/login/oauth2/code/*")
+                        )
                          .userInfoEndpoint(userInfo -> userInfo
                                 .userService(nextmeOAuth2UserService)  // <- 메서드 파라미터로 받은 걸 사용
                         )
@@ -119,7 +134,25 @@ public class SecurityConfig {
         return http.build();
     }
 
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
 
+        // 로컬용 IP
+        //configuration.setAllowedOrigins(List.of("http://localhost:12000"));
+
+        //배포용 IP
+        configuration.setAllowedOrigins(List.of("http://34.50.7.8","http://localhost:12000"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
