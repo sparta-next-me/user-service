@@ -21,7 +21,7 @@ import java.util.List;
 public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtTokenProvider jwtTokenProvider; // msa-common 의 JwtTokenProvider
-    private static final String FRONTEND_BASE_URI = "http://34.50.7.8:30001";
+    private static final String FRONTEND_BASE_URI = "http://sparta-nextme.xyz";
 
     private static final String FRONTEND_REDIRECT_PATH = "/oauth/redirect"; // 프론트엔드에서 토큰을 처리할 경로
 
